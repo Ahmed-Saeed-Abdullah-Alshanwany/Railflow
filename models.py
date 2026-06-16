@@ -1,19 +1,40 @@
-from pydantic import BaseModel
-from typing import List, Optional
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any
+
+class GeometryModel(BaseModel):
+    type: str
+    coordinates: List[float]
+
+class AgencyModel(BaseModel):
+    id: int
+    onestop_id: str
+    agency_id: Optional[str] = None
+    agency_name: str
+    agency_url: Optional[str] = None
+    agency_timezone: Optional[str] = None
+    agency_lang: Optional[str] = None
+    agency_phone: Optional[str] = None
 
 class StopModel(BaseModel):
-    stop_id: str
-    stop_name: str
-    lat: float
-    lon: float
-    wheelchair: int = 0
-    transport_type: Optional[str] = None
+    id: int
+    onestop_id: str
+    stop_id: Optional[str] = None
+    stop_name: Optional[str] = None
+    stop_code: Optional[str] = None
+    location_type: Optional[int] = 0
+    wheelchair_boarding: Optional[int] = 0
+    geometry: Optional[GeometryModel] = None
+    place: Optional[Dict[str, Any]] = None
 
-class RouteStopModel(BaseModel):
-    stop_id: str
+class RouteAgencyModel(BaseModel):
+    agency_id: Optional[str] = None
+    agency_name: Optional[str] = None
 
 class RouteModel(BaseModel):
-    route_id: str
-    line: str
-    agency: Optional[str] = ""
-    stops: List[RouteStopModel] = []
+    id: int
+    onestop_id: str
+    route_id: Optional[str] = None
+    route_short_name: Optional[str] = None
+    route_long_name: Optional[str] = None
+    route_type: Optional[int] = None
+    agency: Optional[RouteAgencyModel] = None

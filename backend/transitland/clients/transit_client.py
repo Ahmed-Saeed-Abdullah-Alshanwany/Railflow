@@ -60,21 +60,23 @@ class TransitLandClient:
     def get_stops(
         self,
         served_by_onestop_ids,
-        limit=100
+        limit=100,
+        after=None
     ):
 
         url = f"{self.BASE_URL}/stops"
+        
+        params = {
+            "served_by_onestop_ids": served_by_onestop_ids,
+            "limit": limit
+        }
+        if after:
+            params["after"] = after
 
         response = requests.get(
             url,
             headers=self.headers,
-            params={
-                "served_by_onestop_ids":
-                served_by_onestop_ids,
-
-                "limit":
-                limit
-            }
+            params=params
         )
 
         response.raise_for_status()

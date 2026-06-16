@@ -1,45 +1,20 @@
-from backend.transitland.clients.transit_client import (
-    TransitLandClient
-)
+from backend.transitland.clients.transit_client import TransitLandClient
 
 
 class BerlinExtractor:
 
-    def __init__(self):
+    OPERATOR_ID = "o-u33-s~bahnberlingmbh"
 
+    def __init__(self):
         self.client = TransitLandClient()
 
-        self.operator_id = (
-            "o-u33-s~bahnberlingmbh"
+    def extract_routes(self, limit: int = 50, after: int = None):
+        data = self.client.get_routes_by_operator(
+            operator_onestop_id=self.OPERATOR_ID,
+            limit=limit,
+            after=after
         )
-
-    def extract_routes(self):
-
-        all_routes = []
-
-        after = None
-
-        while True:
-
-            data = self.client.get_routes_by_operator(
-                self.operator_id,
-                limit=50,
-                after=after
-            )
-
-            routes = data.get("routes", [])
-
-            all_routes.extend(routes)
-
-            meta = data.get("meta", {})
-
-            after = meta.get("after")
-
-            print(
-                f"Collected routes: {len(all_routes)}"
-            )
-
-            if not after:
-                break
-
-        return all_routes
+        routes = data.get("routes", [])
+        meta = data.get("meta", {})
+        next_cursor = meta.get("after")
+        return routes, next_cursor
