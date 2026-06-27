@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Railflow - نظام المساعد الذكي وجدولة النقل</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Tajawal:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            --bg-base: #0f172a;
+            --bg-surface: rgba(30, 41, 59, 0.5);
+            --bg-surface-hover: rgba(30, 41, 59, 0.8);
+            --border-glow: rgba(124, 58, 237, 0.15);
+            --border-glow-active: rgba(6, 182, 212, 0.4);
+            
+            --primary: #7c3aed;
+            --primary-glow: rgba(124, 58, 237, 0.4);
+            --secondary: #06b6d4;
+            --secondary-glow: rgba(6, 182, 212, 0.4);
+            
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --text-glow: #e2e8f0;
+            
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Tajawal', 'Outfit', sans-serif;
+            scrollbar-width: thin;
+            scrollbar-color: var(--primary) var(--bg-base);
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-base);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 3px;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            background-image: 
+                radial-gradient(at 10% 20%, rgba(124, 58, 237, 0.15) 0px, transparent 50%),
+                radial-gradient(at 90% 80%, rgba(6, 182, 212, 0.12) 0px, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* Glassmorphism utility */
+        .glass-card {
+            background: var(--bg-surface);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            border-radius: 16px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .glass-card:hover {
+            border-color: var(--border-glow-active);
+            box-shadow: 0 8px 32px 0 var(--secondary-glow);
+        }
+
+        /* Header Style */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 40px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(8px);
+            z-index: 100;
+            position: sticky;
+            top: 0;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+        }
+
+        .logo-icon {
+            font-size: 24px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 8px var(--primary-glow));
+        }
+
+        .logo-text {
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            background: linear-gradient(to left, var(--text-main), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-buttons {
+            display: flex;
+            gap: 15px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            border: 1px solid transparent;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), #6366f1);
+            color: white;
+            box-shadow: 0 4px 14px var(--primary-glow);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(124, 58, 237, 0.6);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-main);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--secondary);
+            color: var(--secondary);
+        }
+
+        /* Screen containers */
+        .screen {
+            display: none;
+            flex: 1;
+            padding: 40px;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+
+        .screen.active {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* WELCOME SCREEN */
+        #screen-welcome {
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding-top: 8vh;
+        }
+
+        .welcome-title {
+            font-size: 48px;
+            font-weight: 900;
+            margin-bottom: 15px;
+            background: linear-gradient(135deg, var(--text-main) 30%, var(--secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .welcome-desc {
+            color: var(--text-muted);
+            font-size: 18px;
+            max-width: 600px;
+            margin-bottom: 40px;
+            line-height: 1.6;
+        }
+
+        .welcome-cards {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            max-width: 900px;
+            width: 100%;
+        }
+
+        .welcome-card {
+            padding: 40px 30px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .welcome-card-icon {
+            font-size: 40px;
+            margin-bottom: 20px;
+            height: 80px;
+            width: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: all 0.3s ease;
+        }
+
+        .welcome-card:hover .welcome-card-icon {
+            transform: scale(1.1) rotate(5deg);
+        }
+
+        .welcome-card.user-role:hover .welcome-card-icon {
+            background: rgba(124, 58, 237, 0.15);
+            border-color: var(--primary);
+            color: var(--primary);
+            box-shadow: 0 0 20px var(--primary-glow);
+        }
+
+        .welcome-card.analyst-role:hover .welcome-card-icon {
+            background: rgba(6, 182, 212, 0.15);
+            border-color: var(--secondary);
+            color: var(--secondary);
+            box-shadow: 0 0 20px var(--secondary-glow);
+        }
+
+        .welcome-card-title {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .welcome-card-desc {
+            color: var(--text-muted);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        /* CHAT SCREEN COMMON */
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 160px);
+            width: 100%;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .chat-message {
+            display: flex;
+            gap: 15px;
+            max-width: 85%;
+            animation: messageSlideIn 0.3s ease-out forwards;
+        }
+
+        @keyframes messageSlideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .chat-message.user {
+            align-self: flex-start;
+            flex-direction: row-reverse;
+        }
+
+        .chat-message.assistant {
+            align-self: flex-end;
+        }
+
+        .chat-avatar {
+            height: 40px;
+            width: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .chat-message.user .chat-avatar {
+            background: linear-gradient(135deg, #4f46e5, var(--primary));
+            color: white;
+        }
+
+        .chat-message.assistant .chat-avatar {
+            background: linear-gradient(135deg, var(--secondary), #0891b2);
+            color: white;
+        }
+
+        .chat-bubble {
+            padding: 15px 20px;
+            border-radius: 12px;
+            line-height: 1.6;
+            font-size: 15px;
+            white-space: pre-wrap;
+        }
+
+        .chat-message.user .chat-bubble {
+            background: rgba(124, 58, 237, 0.12);
+            border: 1px solid rgba(124, 58, 237, 0.2);
+            border-top-left-radius: 0;
+        }
+
+        .chat-message.assistant .chat-bubble {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-top-right-radius: 0;
+        }
+
+        .chat-input-area {
+            display: flex;
+            gap: 15px;
+            padding: 20px 0;
+            align-items: center;
+        }
+
+        .chat-input {
+            flex: 1;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+            color: var(--text-main);
+            font-size: 15px;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .chat-input:focus {
+            border-color: var(--secondary);
+            box-shadow: 0 0 10px rgba(6, 182, 212, 0.2);
+        }
+
+        .btn-send {
+            padding: 15px 25px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--secondary), var(--primary));
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 4px 10px var(--secondary-glow);
+            transition: all 0.2s ease;
+        }
+
+        .btn-send:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 15px rgba(6, 182, 212, 0.6);
+        }
+
+        /* Preset prompts */
+        .preset-prompts {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+
+        .preset-prompt {
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 20px;
+            font-size: 13px;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .preset-prompt:hover {
+            background: rgba(6, 182, 212, 0.08);
+            border-color: var(--secondary);
+            color: var(--secondary);
+        }
+
+        /* ANALYST DASHBOARD */
+        .analyst-layout {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 30px;
+            height: calc(100vh - 120px);
+            width: 100%;
+        }
+
+        .analyst-sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+
+        .sidebar-section {
+            padding: 20px;
+        }
+
+        .sidebar-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--secondary);
+        }
+
+        .stat-card {
+            padding: 15px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.05);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 12px;
+        }
+
+        .stat-icon {
+            font-size: 20px;
+            height: 45px;
+            width: 45px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(6, 182, 212, 0.1);
+            color: var(--secondary);
+            border: 1px solid rgba(6, 182, 212, 0.2);
+        }
+
+        .stat-details {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: var(--text-main);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        /* Busiest list */
+        .busiest-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .busiest-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.01);
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            font-size: 13px;
+        }
+
+        .busiest-item-name {
+            font-weight: 500;
+        }
+
+        .busiest-item-val {
+            color: var(--secondary);
+            font-weight: bold;
+        }
+
+        /* Analyst Content Area */
+        .analyst-content {
+            display: grid;
+            grid-template-rows: auto 1fr;
+            gap: 20px;
+            height: 100%;
+        }
+
+        .analysis-box {
+            padding: 25px;
+            overflow-y: auto;
+            max-height: 320px;
+        }
+
+        .analysis-box h3 {
+            margin-bottom: 15px;
+            color: var(--secondary);
+            font-size: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            padding-bottom: 10px;
+        }
+
+        .analysis-box p, .analysis-box li {
+            line-height: 1.7;
+            font-size: 14px;
+            color: var(--text-glow);
+            margin-bottom: 10px;
+        }
+
+        .analysis-box ul, .analysis-box ol {
+            padding-right: 20px;
+            margin-bottom: 15px;
+        }
+
+        /* Loading Spinner */
+        .spinner-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            gap: 15px;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-radius: 50%;
+            border-top-color: var(--secondary);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Markdown Rendering Tweaks */
+        .markdown-content ul, .markdown-content ol {
+            padding-right: 20px;
+            margin: 10px 0;
+        }
+        .markdown-content li {
+            margin-bottom: 5px;
+        }
+        .markdown-content strong {
+            color: var(--secondary);
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo-container" onclick="showScreen('screen-welcome')">
+            <i class="fa-solid fa-train-subway logo-icon"></i>
+            <span class="logo-text">Railflow</span>
+        </div>
+        <div class="header-buttons">
+            <button class="btn btn-secondary" onclick="showScreen('screen-welcome')"><i class="fa-solid fa-house"></i> الرئيسة</button>
+            <button class="btn btn-secondary" onclick="showScreen('screen-user-chat')"><i class="fa-solid fa-comments"></i> شات المساعد</button>
+            <button class="btn btn-secondary" onclick="showScreen('screen-analyst-dashboard')"><i class="fa-solid fa-chart-line"></i> تحليل الأداء</button>
+        </div>
+    </header>
+
+    <!-- 1. WELCOME SCREEN -->
+    <div id="screen-welcome" class="screen active">
+        <h1 class="welcome-title">مرحباً بك في نظام Railflow الذكي</h1>
+        <p class="welcome-desc">منصة النقل المتكاملة لجدولة وتحليل أداء شبكات المترو والقطارات بالاعتماد على خوارزميات الذكاء الاصطناعي الذاتية.</p>
+        
+        <div class="welcome-cards">
+            <div class="glass-card welcome-card user-role" onclick="showScreen('screen-user-chat')">
+                <div class="welcome-card-icon">
+                    <i class="fa-solid fa-user-astronaut"></i>
+                </div>
+                <h2 class="welcome-card-title">مساعد الركاب الذكي</h2>
+                <p class="welcome-card-desc">خطط لرحلتك، ابحث عن المواعيد والقطارات، واعرف أوقات الوصول والتحويلات في أجزاء من الثانية باللغة العربية.</p>
+            </div>
+            
+            <div class="glass-card welcome-card analyst-role" onclick="showScreen('screen-analyst-dashboard')">
+                <div class="welcome-card-icon">
+                    <i class="fa-solid fa-chart-pie"></i>
+                </div>
+                <h2 class="welcome-card-title">محلل كفاءة التشغيل</h2>
+                <p class="welcome-card-desc">احصل على تقارير تفصيلية عن المحطات الأكثر ازدحاماً، ثغرات الجدولة، وتوصيات تشغيلية ذكية لتحسين الجودة وضغط الذروة.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. USER CHAT SCREEN -->
+    <div id="screen-user-chat" class="screen">
+        <div class="chat-container">
+            <div class="preset-prompts">
+                <div class="preset-prompt" onclick="setChatInput('عايز أروح محطة Chatou من محطة Nation الساعة 9 الصبح')">رحلة من Nation إلى Chatou الساعة 9 ص</div>
+                <div class="preset-prompt" onclick="setChatInput('هل في رحلات من Gare de Lyon إلى La Défense الساعة 10 بالليل؟')">رحلة من Gare de Lyon إلى La Défense الساعة 10 م</div>
+                <div class="preset-prompt" onclick="setChatInput('ما هي محطة الوصول للرحلات التي تمر بـ Chatou - Croissy؟')">استفسار عن محطة Chatou - Croissy</div>
+            </div>
+            <div class="glass-card chat-messages" id="user-chat-messages">
+                <div class="chat-message assistant">
+                    <div class="chat-avatar"><i class="fa-solid fa-robot"></i></div>
+                    <div class="chat-bubble">أهلاً بك! أنا المساعد الذكي لشبكة النقل. كيف يمكنني مساعدتك في تخطيط رحلتك اليوم؟</div>
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" class="chat-input" id="user-chat-input" placeholder="اكتب سؤالك هنا عن الرحلات أو المحطات..." onkeydown="if(event.key === 'Enter') sendUserMessage('user')">
+                <button class="btn btn-send" onclick="sendUserMessage('user')">إرسال <i class="fa-solid fa-paper-plane-radial"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. ANALYST DASHBOARD SCREEN -->
+    <div id="screen-analyst-dashboard" class="screen">
+        <div class="analyst-layout">
+            
+            <!-- Sidebar with static/computed stats -->
+            <div class="glass-card analyst-sidebar">
+                <div class="sidebar-section">
+                    <h3 class="sidebar-title"><i class="fa-solid fa-gauge"></i> إحصائيات عامة (آخر يوم)</h3>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fa-solid fa-train"></i></div>
+                        <div class="stat-details">
+                            <span class="stat-value">5,547</span>
+                            <span class="stat-label">رحلة مجدولة يومياً</span>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fa-solid fa-map-pin"></i></div>
+                        <div class="stat-details">
+                            <span class="stat-value">Châtelet - Les Halles</span>
+                            <span class="stat-label">المحطة الأكثر ازدحاماً</span>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fa-solid fa-calendar-day"></i></div>
+                        <div class="stat-details">
+                            <span class="stat-value">2026-06-24</span>
+                            <span class="stat-label">آخر تحديث للجدول التشغيلي</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="sidebar-section" style="border-top: 1px solid rgba(255,255,255,0.05)">
+                    <h3 class="sidebar-title"><i class="fa-solid fa-fire"></i> أعلى 5 محطات ازدحاماً بالرحلات</h3>
+                    <div class="busiest-list">
+                        <div class="busiest-item">
+                            <span class="busiest-item-name">Châtelet - Les Halles</span>
+                            <span class="busiest-item-val">10,164 رحلة</span>
+                        </div>
+                        <div class="busiest-item">
+                            <span class="busiest-item-name">La Défense</span>
+                            <span class="busiest-item-val">8,753 رحلة</span>
+                        </div>
+                        <div class="busiest-item">
+                            <span class="busiest-item-name">Gare Saint-Lazare</span>
+                            <span class="busiest-item-val">7,115 رحلة</span>
+                        </div>
+                        <div class="busiest-item">
+                            <span class="busiest-item-name">Stade de France Saint-Denis</span>
+                            <span class="busiest-item-val">6,336 رحلة</span>
+                        </div>
+                        <div class="busiest-item">
+                            <span class="busiest-item-name">Paris Gare du Nord</span>
+                            <span class="busiest-item-val">6,267 رحلة</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Content Area (Dashboard AI Analyst & Chat) -->
+            <div class="analyst-content">
+                <!-- AI Generated Analysis & Recommendations Box -->
+                <div class="glass-card analysis-box" id="analysis-box">
+                    <h3><i class="fa-solid fa-brain-circuit"></i> التحليل التلقائي وتوصيات الذكاء الاصطناعي</h3>
+                    <div id="analysis-box-content">
+                        <div class="spinner-container">
+                            <div class="spinner"></div>
+                            <p>جاري توليد التقرير التحليلي للنظام واقتراحات التحسين من خوارزميات الذكاء الاصطناعي...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Box inside Analyst Dashboard for custom analytics -->
+                <div class="chat-container" style="height: auto; min-height: 350px;">
+                    <div class="preset-prompts">
+                        <div class="preset-prompt" onclick="setAnalystInput('ما هي توصياتك لتحسين الكفاءة في محطة Gare Saint-Lazare؟')">توصيات محطة Gare Saint-Lazare</div>
+                        <div class="preset-prompt" onclick="setAnalystInput('ما هي أوقات الذروة المتوقعة وأين تتركز؟')">أين تتركز أوقات الذروة؟</div>
+                        <div class="preset-prompt" onclick="setAnalystInput('عايز تقرير عن المسارات التابعة لشركة RER')">تقرير RER</div>
+                    </div>
+                    <div class="glass-card chat-messages" id="analyst-chat-messages" style="max-height: 250px;">
+                        <div class="chat-message assistant">
+                            <div class="chat-avatar" style="background: linear-gradient(135deg, var(--primary), #4f46e5);"><i class="fa-solid fa-user-tie"></i></div>
+                            <div class="chat-bubble">مرحباً بك في لوحة تحكم التشغيل. يمكنك سؤالي عن أي إحصائيات، أو مشاكل في الجدولة، أو طلب مقترحات تحسين محددة للمحطات والخطوط.</div>
+                        </div>
+                    </div>
+                    <div class="chat-input-area">
+                        <input type="text" class="chat-input" id="analyst-chat-input" placeholder="اسأل المحلل عن مقترحات كفاءة التشغيل وجودة الخدمة..." onkeydown="if(event.key === 'Enter') sendUserMessage('analyst')">
+                        <button class="btn btn-send" style="background: linear-gradient(135deg, var(--primary), #4f46e5);" onclick="sendUserMessage('analyst')">طلب تحليل <i class="fa-solid fa-magnifying-glass-chart"></i></button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // Global variables for conversation history
+        let userChatHistory = [];
+        let analystChatHistory = [];
+        let initialAnalysisLoaded = false;
+
+        // Screen switching function
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+            
+            // Auto load analysis if operator mode is opened
+            if (screenId === 'screen-analyst-dashboard' && !initialAnalysisLoaded) {
+                loadInitialAnalysis();
+            }
+        }
+
+        // Set preset prompt text to chat input
+        function setChatInput(text) {
+            document.getElementById('user-chat-input').value = text;
+        }
+
+        function setAnalystInput(text) {
+            document.getElementById('analyst-chat-input').value = text;
+        }
+
+        // Format Markdown-like text into simple HTML
+        function formatMarkdown(text) {
+            if (!text) return "";
+            
+            // Clean up backticks
+            let html = text.replace(/```/g, '');
+            
+            // Bold text
+            html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            
+            // Unordered list
+            html = html.replace(/^\s*-\s+(.*?)$/gm, '<li>$1</li>');
+            html = html.replace(/(<li>.*?<\/li>)/gs, '<ul>$1</ul>');
+            // Clean consecutive duplicated lists
+            html = html.replace(/<\/ul>\s*<ul>/g, '');
+
+            // Bullet points using *
+            html = html.replace(/^\s*\*\s+(.*?)$/gm, '<li>$1</li>');
+            html = html.replace(/(<li>.*?<\/li>)/gs, '<ul>$1</ul>');
+            html = html.replace(/<\/ul>\s*<ul>/g, '');
+            
+            // Numbered list
+            html = html.replace(/^\s*\d+\.\s+(.*?)$/gm, '<li>$1</li>');
+            html = html.replace(/(<li>.*?<\/li>)/gs, '<ol>$1</ol>');
+            html = html.replace(/<\/ol>\s*<ol>/g, '');
+            
+            // New lines to br (avoiding inside lists)
+            html = html.replace(/\n/g, '<br>');
+            
+            return `<div class="markdown-content">${html}</div>`;
+        }
+
+        // Send chat message to backend
+        async function sendUserMessage(role) {
+            const inputId = role === 'user' ? 'user-chat-input' : 'analyst-chat-input';
+            const messagesId = role === 'user' ? 'user-chat-messages' : 'analyst-chat-messages';
+            const history = role === 'user' ? userChatHistory : analystChatHistory;
+            const mode = role === 'user' ? 'user' : 'analyst';
+
+            const inputEl = document.getElementById(inputId);
+            const messageText = inputEl.value.trim();
+            if (!messageText) return;
+
+            // Clear input
+            inputEl.value = '';
+
+            // Render User bubble
+            renderMessage(messagesId, 'user', messageText, role);
+
+            // Add loading placeholder
+            const loadingId = 'loading-' + Date.now();
+            const messagesContainer = document.getElementById(messagesId);
+            const loadingHtml = `
+                <div class="chat-message assistant" id="${loadingId}">
+                    <div class="chat-avatar"><i class="fa-solid fa-circle-notch fa-spin"></i></div>
+                    <div class="chat-bubble">جاري معالجة البيانات والاستعلام...</div>
+                </div>
+            `;
+            messagesContainer.insertAdjacentHTML('beforeend', loadingHtml);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+            try {
+                const response = await fetch('/agent/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: messageText,
+                        history: history,
+                        mode: mode
+                    })
+                });
+
+                const data = await response.json();
+                
+                // Remove loading placeholder
+                const loadingEl = document.getElementById(loadingId);
+                if (loadingEl) loadingEl.remove();
+
+                if (response.ok) {
+                    // Update appropriate history
+                    if (role === 'user') {
+                        userChatHistory = data.history;
+                    } else {
+                        analystChatHistory = data.history;
+                    }
+
+                    // Render assistant response
+                    renderMessage(messagesId, 'assistant', data.response, role);
+                } else {
+                    renderMessage(messagesId, 'assistant', `خطأ في الاتصال بالـ API: ${data.detail || 'فشل غير معروف'}`, role);
+                }
+            } catch (err) {
+                const loadingEl = document.getElementById(loadingId);
+                if (loadingEl) loadingEl.remove();
+                renderMessage(messagesId, 'assistant', `خطأ في الاتصال بالشبكة: ${err.message}`, role);
+            }
+        }
+
+        // Render message helper
+        function renderMessage(containerId, sender, text, role) {
+            const container = document.getElementById(containerId);
+            const avatarIcon = sender === 'user' ? 
+                (role === 'user' ? '<i class="fa-solid fa-user-astronaut"></i>' : '<i class="fa-solid fa-chart-simple"></i>') : 
+                (role === 'user' ? '<i class="fa-solid fa-robot"></i>' : '<i class="fa-solid fa-user-tie"></i>');
+                
+            const messageHtml = `
+                <div class="chat-message ${sender}">
+                    <div class="chat-avatar">${avatarIcon}</div>
+                    <div class="chat-bubble">${formatMarkdown(text)}</div>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', messageHtml);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // Load initial analysis automatically on opening dashboard
+        async function loadInitialAnalysis() {
+            initialAnalysisLoaded = true;
+            const container = document.getElementById('analysis-box-content');
+            
+            try {
+                const response = await fetch('/agent/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: "اكتب تقريراً تشغيلياً عاماً يحدد المحطات الأكثر ازدحاماً بالرحلات المجدولة في النظام، مع تقديم 3 مقترحات فنية وتوصيات تشغيلية محددة ومفصلة لتحسين كفاءة التشغيل وتقليل أوقات الانتظار.",
+                        history: [],
+                        mode: "analyst"
+                    })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    container.innerHTML = formatMarkdown(data.response);
+                } else {
+                    container.innerHTML = `<p style="color: var(--danger)">خطأ أثناء تحميل التحليل: ${data.detail || 'خطأ غير معروف'}</p>`;
+                }
+            } catch (err) {
+                container.innerHTML = `<p style="color: var(--danger)">خطأ في الاتصال بالخادم: ${err.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

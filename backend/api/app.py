@@ -6,6 +6,7 @@ from typing import Optional
 
 from backend.api.fetch_service import fetch_stops, fetch_routes
 from pydantic import BaseModel
+from backend.api.routers.agent import router as agent_router
 
 load_dotenv()
 
@@ -14,6 +15,8 @@ app = FastAPI(
     description="Fetches transit data from Transitland API and returns it directly (No DB).",
     version="1.0.0",
 )
+
+app.include_router(agent_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -70,3 +73,17 @@ def fetch_routes_endpoint(
         next_after=result["next_after"],
         data=result["data"]
     )
+
+from fastapi.responses import FileResponse
+import os
+
+@app.get("/", include_in_schema=False)
+def serve_frontend():
+    frontend_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "frontend", "index.html")
+    if not os.path.exists(frontend_path):
+        # Create directory if not exists
+        os.makedirs(os.path.dirname(frontend_path), exist_ok=True)
+        # Create basic stub if missing
+        with open(frontend_path, "w", encoding="utf-8") as f:
+            f.write("<h1>Railflow Frontend</h1>")
+    return FileResponse(frontend_path)
