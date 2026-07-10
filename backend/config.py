@@ -20,6 +20,8 @@ class Config:
     GROQ_API_KEY = os.getenv("GROQ_API_KEY")
     GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
     GROQ_API_URL = os.getenv("GROQ_API_URL", "https://api.groq.com/openai/v1")
+    GROQ_TEMPERATURE = float(os.getenv("GROQ_TEMPERATURE", "0.15"))
+    GROQ_MAX_TOKENS = int(os.getenv("GROQ_MAX_TOKENS", "1200"))
 
     @classmethod
     def validate(cls):

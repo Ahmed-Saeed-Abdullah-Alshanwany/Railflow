@@ -31,7 +31,8 @@ class GroqClient:
         payload = {
             "model": self.model,
             "messages": messages,
-            "temperature": 0.2  # low temperature for stable tool calling and SQL generation
+            "temperature": Config.GROQ_TEMPERATURE,
+            "max_tokens": Config.GROQ_MAX_TOKENS
         }
         
         if tools:
