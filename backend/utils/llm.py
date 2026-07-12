@@ -35,6 +35,8 @@ class GroqClient:
         if tools:
             payload["tools"] = tools
             payload["tool_choice"] = tool_choice
+            payload["parallel_tool_calls"] = False   # prevent 50+ duplicate parallel calls
+
 
         import time
         import re
@@ -65,11 +67,24 @@ class GroqClient:
                     time.sleep(wait_time)
                     continue  # retry
                 
+                if response.status_code == 400 and tools:
+                    try:
+                        resp_json = response.json()
+                        error_code = resp_json.get("error", {}).get("code", "")
+                        error_msg = resp_json.get("error", {}).get("message", "")
+                        if "tool_use" in error_code or "tool" in error_code or "function" in error_msg:
+                            print(f"[FALLBACK] Groq native tool use failed. Retrying completion without tools parameter...")
+                            # Retry without tools
+                            return self.chat_completion(messages, tools=None)
+                    except Exception:
+                        pass
+
                 if response.status_code != 200:
                     error_msg = f"Groq API error ({response.status_code}): {response.text}"
                     print(error_msg)
                     raise Exception(error_msg)
                     
                 return response.json()
+
 
         raise Exception("Failed to get response from Groq after maximum rate limit retries.")

@@ -7,13 +7,18 @@ load_dotenv()
 
 def get_db_connection():
     """Return a live psycopg2 connection using environment variables."""
-    return psycopg2.connect(
+    conn = psycopg2.connect(
         dbname=os.getenv("DB_NAME"),
         user=os.getenv("DB_USER"),
         password=os.getenv("DB_PASSWORD"),
         host=os.getenv("DB_HOST", "localhost"),
         port=os.getenv("DB_PORT", "5435"),
     )
+    # Enforce statement timeout of 5 seconds (5000 ms) for server stability
+    with conn.cursor() as cur:
+        cur.execute("SET statement_timeout = 5000;")
+    conn.commit()
+    return conn
 
 
 def create_tables(conn):

@@ -73,6 +73,26 @@ def find_routes(
 
         actual_start = resolved_start
         actual_end = resolved_end
+
+        # Fast-track check: If start and end are the same stop or belong to the same parent station
+        with conn.cursor() as cur:
+            cur.execute("SELECT parent_station FROM gtfs.stops WHERE stop_id = %s", (actual_start,))
+            p1 = cur.fetchone()
+            cur.execute("SELECT parent_station FROM gtfs.stops WHERE stop_id = %s", (actual_end,))
+            p2 = cur.fetchone()
+            
+            p1_id = p1[0] if p1 else None
+            p2_id = p2[0] if p2 else None
+
+            if actual_start == actual_end or (p1_id and p2_id and p1_id == p2_id):
+                return {
+                    "start_stop_id": actual_start,
+                    "end_stop_id": actual_end,
+                    "start_time": start_time_str,
+                    "options": [],
+                    "message": "المغادرة والوصول في نفس المحطة. أنت بالفعل في وجهتك، لا توجد رحلات مطلوبة."
+                }
+
         routes_found = []
         
         # 1. Search for direct routes
@@ -184,72 +204,126 @@ def _find_direct_routes(conn, start_stop_id: str, end_stop_id: str, start_time: 
         ]
 
 def _find_one_transfer_routes(conn, start_stop_id: str, end_stop_id: str, start_time: str, limit: int) -> List[Dict[str, Any]]:
+    # 1. Fetch start stops and end stops PIDs
     with conn.cursor() as cur:
-        # Note: We enforce a minimum 2-minute buffer for the transfer to be realistic.
         cur.execute("""
             WITH start_stops AS (
                 SELECT stop_id FROM gtfs.stops 
                 WHERE stop_id = %s OR parent_station = %s OR parent_station = (
                     SELECT parent_station FROM gtfs.stops WHERE stop_id = %s AND parent_station IS NOT NULL
                 )
-            ),
-            end_stops AS (
+            ) SELECT stop_id FROM start_stops;
+        """, (start_stop_id, start_stop_id, start_stop_id))
+        start_stop_ids = [r[0] for r in cur.fetchall()]
+
+        cur.execute("""
+            WITH end_stops AS (
                 SELECT stop_id FROM gtfs.stops 
                 WHERE stop_id = %s OR parent_station = %s OR parent_station = (
                     SELECT parent_station FROM gtfs.stops WHERE stop_id = %s AND parent_station IS NOT NULL
                 )
-            )
+            ) SELECT stop_id FROM end_stops;
+        """, (end_stop_id, end_stop_id, end_stop_id))
+        end_stop_ids = [r[0] for r in cur.fetchall()]
+
+        if not start_stop_ids or not end_stop_ids:
+            return []
+
+        # 2. Get all trips passing through start stops, and their subsequent stop times
+        cur.execute("""
             SELECT 
-                st1.trip_id AS trip1_id,
-                COALESCE(r1.route_short_name, r1.route_long_name) AS route1_name,
+                st1.trip_id,
+                st1.stop_id AS start_stop_id,
                 st1.departure_time AS start_time,
-                st_trans1.arrival_time AS trans1_time,
-                st_trans1.stop_id AS transfer_stop_id,
-                s_trans.stop_name AS transfer_stop_name,
-                st_trans2.departure_time AS trans2_time,
-                st2.arrival_time AS end_time,
-                st2.trip_id AS trip2_id,
-                COALESCE(r2.route_short_name, r2.route_long_name) AS route2_name,
-                s1.stop_name AS from_stop_name,
-                s2.stop_name AS to_stop_name
+                st_trans.stop_id AS transfer_stop_id,
+                st_trans.arrival_time AS transfer_arrival_time,
+                COALESCE(r1.route_short_name, r1.route_long_name) AS route_name
             FROM gtfs.stop_times st1
-            JOIN gtfs.stop_times st_trans1 ON st1.trip_id = st_trans1.trip_id AND st1.stop_sequence < st_trans1.stop_sequence
+            JOIN gtfs.stop_times st_trans ON st1.trip_id = st_trans.trip_id AND st1.stop_sequence < st_trans.stop_sequence
             JOIN gtfs.trips t1 ON st1.trip_id = t1.trip_id
             JOIN gtfs.routes r1 ON t1.route_id = r1.route_id
-            JOIN gtfs.stops s1 ON st1.stop_id = s1.stop_id
-            
-            -- Transfer connection
-            JOIN gtfs.stop_times st_trans2 ON st_trans2.stop_id = st_trans1.stop_id 
-              AND st_trans2.departure_time >= st_trans1.arrival_time
-              AND st_trans2.departure_time::interval <= st_trans1.arrival_time::interval + '02:00:00'::interval
-              
-            JOIN gtfs.stop_times st2 ON st_trans2.trip_id = st2.trip_id AND st_trans2.stop_sequence < st2.stop_sequence
-            JOIN gtfs.trips t2 ON st_trans2.trip_id = t2.trip_id
+            WHERE st1.stop_id = ANY(%s) AND st1.departure_time >= %s;
+        """, (start_stop_ids, start_time))
+        start_trips = cur.fetchall()
+
+        # 3. Get all trips passing through end stops, and their preceding stop times
+        cur.execute("""
+            SELECT 
+                st2.trip_id,
+                st2.stop_id AS end_stop_id,
+                st2.arrival_time AS end_time,
+                st_trans.stop_id AS transfer_stop_id,
+                st_trans.departure_time AS transfer_departure_time,
+                COALESCE(r2.route_short_name, r2.route_long_name) AS route_name
+            FROM gtfs.stop_times st2
+            JOIN gtfs.stop_times st_trans ON st2.trip_id = st_trans.trip_id AND st_trans.stop_sequence < st2.stop_sequence
+            JOIN gtfs.trips t2 ON st2.trip_id = t2.trip_id
             JOIN gtfs.routes r2 ON t2.route_id = r2.route_id
-            JOIN gtfs.stops s2 ON st2.stop_id = s2.stop_id
-            
-            JOIN gtfs.stops s_trans ON s_trans.stop_id = st_trans1.stop_id
-            
-            WHERE st1.stop_id IN (SELECT stop_id FROM start_stops) 
-              AND st2.stop_id IN (SELECT stop_id FROM end_stops) 
-              AND st1.departure_time >= %s
-              AND st_trans2.departure_time >= st_trans1.arrival_time
-            ORDER BY st2.arrival_time ASC, st1.departure_time ASC
-            LIMIT %s;
-        """, (start_stop_id, start_stop_id, start_stop_id, end_stop_id, end_stop_id, end_stop_id, start_time, limit))
+            WHERE st2.stop_id = ANY(%s);
+        """, (end_stop_ids,))
+        end_trips = cur.fetchall()
+
+    # 4. Group by transfer stop
+    start_by_transfer = {}
+    for r in start_trips:
+        trans_stop = r[3]
+        if trans_stop not in start_by_transfer:
+            start_by_transfer[trans_stop] = []
+        start_by_transfer[trans_stop].append(r)
+
+    end_by_transfer = {}
+    for r in end_trips:
+        trans_stop = r[3]
+        if trans_stop not in end_by_transfer:
+            end_by_transfer[trans_stop] = []
+        end_by_transfer[trans_stop].append(r)
+
+    # 5. Intersect transfer stops and find matches
+    common_transfers = set(start_by_transfer.keys()) & set(end_by_transfer.keys())
+    
+    options = []
+    for trans_stop in common_transfers:
+        starts = start_by_transfer[trans_stop]
+        ends = end_by_transfer[trans_stop]
         
-        return [
-            {
-                "trip1_id": r[0],
-                "route1_name": r[1],
-                "start_time": r[2],
-                "trans1_time": r[3],
-                "transfer_stop_id": r[4],
-                "transfer_stop_name": r[5],
-                "trans2_time": r[6],
-                "end_time": r[7],
-                "trip2_id": r[8],
-                "route2_name": r[9]
-            }
-            for r in cur.fetchall()
-        ]
+        for s in starts:
+            for e in ends:
+                arr_time = s[4] # HH:MM:SS
+                dep_time = e[4] # HH:MM:SS
+                
+                if dep_time >= arr_time:
+                    try:
+                        # parse to minutes to verify 2 hours buffer
+                        h1, m1, s1 = map(int, arr_time.split(':'))
+                        h2, m2, s2 = map(int, dep_time.split(':'))
+                        diff_minutes = (h2 * 60 + m2) - (h1 * 60 + m1)
+                        if 0 <= diff_minutes <= 120:
+                            options.append({
+                                "trip1_id": s[0],
+                                "route1_name": s[5],
+                                "start_time": s[2],
+                                "trans1_time": s[4],
+                                "transfer_stop_id": trans_stop,
+                                "transfer_stop_name": "", # resolved below
+                                "trans2_time": e[4],
+                                "end_time": e[2],
+                                "trip2_id": e[0],
+                                "route2_name": e[5]
+                            })
+                    except Exception:
+                        continue
+
+    # Sort options by end_time, then start_time
+    options.sort(key=lambda x: (x["end_time"], x["start_time"]))
+    
+    # Take limit and resolve transfer stop names
+    final_options = options[:limit]
+    if final_options:
+        with conn.cursor() as cur:
+            for opt in final_options:
+                cur.execute("SELECT stop_name FROM gtfs.stops WHERE stop_id = %s LIMIT 1", (opt["transfer_stop_id"],))
+                row = cur.fetchone()
+                if row:
+                    opt["transfer_stop_name"] = row[0]
+                    
+    return final_options

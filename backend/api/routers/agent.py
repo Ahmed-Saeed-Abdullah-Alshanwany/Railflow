@@ -18,7 +18,8 @@ def chat_with_agent(payload: AgentChatRequest):
     try:
         history_list = []
         if payload.history:
-            for item in payload.history:
+            # Slice to only keep the last 8 messages to prevent exceeding Groq free tier token limits (6000 TPM limit)
+            for item in payload.history[-8:]:
                 history_list.append({"role": item.role, "content": item.content})
                 
         response_text, updated_history = agent_service.chat(payload.message, history_list, payload.mode)

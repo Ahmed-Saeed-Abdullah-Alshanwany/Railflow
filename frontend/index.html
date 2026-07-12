@@ -12,6 +12,9 @@
     
     <!-- FontAwesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Chart.js for analytics dashboard -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
         :root {
@@ -423,16 +426,16 @@
             display: grid;
             grid-template-columns: 350px 1fr;
             gap: 30px;
-            height: calc(100vh - 120px);
             width: 100%;
+            align-items: start;
         }
 
         .analyst-sidebar {
             display: flex;
             flex-direction: column;
             gap: 20px;
-            overflow-y: auto;
-            padding-right: 5px;
+            position: sticky;
+            top: 100px;
         }
 
         .sidebar-section {
@@ -517,16 +520,105 @@
 
         /* Analyst Content Area */
         .analyst-content {
-            display: grid;
-            grid-template-rows: auto 1fr;
-            gap: 20px;
-            height: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            width: 100%;
         }
 
         .analysis-box {
             padding: 25px;
-            overflow-y: auto;
-            max-height: 320px;
+        }
+
+        /* Charts grid & card styles */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            width: 100%;
+        }
+
+        /* Charts mode toggle */
+        .charts-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .charts-toolbar h4 {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--secondary);
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .toggle-group {
+            display: flex;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .toggle-btn {
+            padding: 7px 16px;
+            font-size: 13px;
+            font-family: 'Tajawal', sans-serif;
+            font-weight: 600;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .toggle-btn.active {
+            background: linear-gradient(135deg, var(--secondary), var(--primary));
+            color: #fff;
+        }
+
+        .date-range-badge {
+            font-size: 12px;
+            color: var(--text-muted);
+            background: rgba(6, 182, 212, 0.08);
+            border: 1px solid rgba(6, 182, 212, 0.2);
+            border-radius: 20px;
+            padding: 4px 12px;
+            white-space: nowrap;
+        }
+
+        .chart-card {
+            padding: 20px;
+            min-height: 350px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chart-card.full-width {
+            grid-column: span 2;
+        }
+
+        .chart-card h4 {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            color: var(--secondary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .chart-container-canvas {
+            position: relative;
+            flex-grow: 1;
+            height: 280px;
+            width: 100%;
         }
 
         .analysis-box h3 {
@@ -630,6 +722,8 @@
                 <div class="preset-prompt" onclick="setChatInput('عايز أروح محطة Chatou من محطة Nation الساعة 9 الصبح')">رحلة من Nation إلى Chatou الساعة 9 ص</div>
                 <div class="preset-prompt" onclick="setChatInput('هل في رحلات من Gare de Lyon إلى La Défense الساعة 10 بالليل؟')">رحلة من Gare de Lyon إلى La Défense الساعة 10 م</div>
                 <div class="preset-prompt" onclick="setChatInput('ما هي محطة الوصول للرحلات التي تمر بـ Chatou - Croissy؟')">استفسار عن محطة Chatou - Croissy</div>
+                <!-- Clear Button -->
+                <div class="preset-prompt" style="margin-right: auto; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3); color: var(--danger);" onclick="clearChatHistory('user')"><i class="fa-solid fa-trash"></i> مسح المحادثة</div>
             </div>
             <div class="glass-card chat-messages" id="user-chat-messages">
                 <div class="chat-message assistant">
@@ -656,7 +750,7 @@
                     <div class="stat-card">
                         <div class="stat-icon"><i class="fa-solid fa-train"></i></div>
                         <div class="stat-details">
-                            <span class="stat-value">5,547</span>
+                            <span class="stat-value" id="stat-total-trips">5,547</span>
                             <span class="stat-label">رحلة مجدولة يومياً</span>
                         </div>
                     </div>
@@ -664,7 +758,7 @@
                     <div class="stat-card">
                         <div class="stat-icon"><i class="fa-solid fa-map-pin"></i></div>
                         <div class="stat-details">
-                            <span class="stat-value">Châtelet - Les Halles</span>
+                            <span class="stat-value" id="stat-busiest-station">Châtelet - Les Halles</span>
                             <span class="stat-label">المحطة الأكثر ازدحاماً</span>
                         </div>
                     </div>
@@ -672,7 +766,7 @@
                     <div class="stat-card">
                         <div class="stat-icon"><i class="fa-solid fa-calendar-day"></i></div>
                         <div class="stat-details">
-                            <span class="stat-value">2026-06-24</span>
+                            <span class="stat-value" id="stat-last-update">2026-06-24</span>
                             <span class="stat-label">آخر تحديث للجدول التشغيلي</span>
                         </div>
                     </div>
@@ -680,7 +774,7 @@
                 
                 <div class="sidebar-section" style="border-top: 1px solid rgba(255,255,255,0.05)">
                     <h3 class="sidebar-title"><i class="fa-solid fa-fire"></i> أعلى 5 محطات ازدحاماً بالرحلات</h3>
-                    <div class="busiest-list">
+                    <div class="busiest-list" id="busiest-stations-list">
                         <div class="busiest-item">
                             <span class="busiest-item-name">Châtelet - Les Halles</span>
                             <span class="busiest-item-val">10,164 رحلة</span>
@@ -718,43 +812,73 @@
                     </div>
                 </div>
 
+                <!-- Charts Mode Toolbar -->
+                <div class="charts-toolbar">
+                    <h4><i class="fa-solid fa-chart-area"></i> الرسوم البيانية التشغيلية</h4>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <span class="date-range-badge" id="date-range-badge">جاري التحميل...</span>
+                        <div class="toggle-group">
+                            <button class="toggle-btn active" id="toggle-day" onclick="setChartMode('day')">آخر يوم</button>
+                            <button class="toggle-btn" id="toggle-month" onclick="setChartMode('month')">الشهر كله</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rich Charts Grid -->
+                <div class="charts-grid">
+                    <!-- Busiest Stations Horizontal Bar Chart -->
+                    <div class="glass-card chart-card">
+                        <h4><i class="fa-solid fa-chart-bar"></i> أعلى 5 محطات ازدحاماً بالرحلات</h4>
+                        <div class="chart-container-canvas">
+                            <canvas id="chart-busiest-stations"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Routes Distribution Donut Chart -->
+                    <div class="glass-card chart-card">
+                        <h4><i class="fa-solid fa-chart-pie"></i> نسبة توزيع الرحلات حسب خطوط النقل</h4>
+                        <div class="chart-container-canvas">
+                            <canvas id="chart-routes-distribution"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Trips Over Day Smooth Line Chart -->
+                    <div class="glass-card chart-card full-width">
+                        <h4><i class="fa-solid fa-chart-line"></i> توزيع الرحلات على مدار اليوم (الذروة التشغيلية)</h4>
+                        <div class="chart-container-canvas">
+                            <canvas id="chart-trips-over-day"></canvas>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Chat Box inside Analyst Dashboard for custom analytics -->
-                <div class="chat-container" style="height: auto; min-height: 350px;">
+                <div class="chat-container" style="height: auto; min-height: 380px;">
                     <div class="preset-prompts">
                         <div class="preset-prompt" onclick="setAnalystInput('ما هي توصياتك لتحسين الكفاءة في محطة Gare Saint-Lazare؟')">توصيات محطة Gare Saint-Lazare</div>
                         <div class="preset-prompt" onclick="setAnalystInput('ما هي أوقات الذروة المتوقعة وأين تتركز؟')">أين تتركز أوقات الذروة؟</div>
                         <div class="preset-prompt" onclick="setAnalystInput('عايز تقرير عن المسارات التابعة لشركة RER')">تقرير RER</div>
-                    </div>
-                    <div class="glass-card chat-messages" id="analyst-chat-messages" style="max-height: 250px;">
-                        <div class="chat-message assistant">
-                            <div class="chat-avatar" style="background: linear-gradient(135deg, var(--primary), #4f46e5);"><i class="fa-solid fa-user-tie"></i></div>
-                            <div class="chat-bubble">مرحباً بك في لوحة تحكم التشغيل. يمكنك سؤالي عن أي إحصائيات، أو مشاكل في الجدولة، أو طلب مقترحات تحسين محددة للمحطات والخطوط.</div>
-                        </div>
-                    </div>
-                    <div class="chat-input-area">
-                        <input type="text" class="chat-input" id="analyst-chat-input" placeholder="اسأل المحلل عن مقترحات كفاءة التشغيل وجودة الخدمة..." onkeydown="if(event.key === 'Enter') sendUserMessage('analyst')">
-                        <button class="btn btn-send" style="background: linear-gradient(135deg, var(--primary), #4f46e5);" onclick="sendUserMessage('analyst')">طلب تحليل <i class="fa-solid fa-magnifying-glass-chart"></i></button>
-                    </div>
-                </div>
-            </div>
-
-        </div>
-    </div>
-
     <script>
         // Global variables for conversation history
         let userChatHistory = [];
         let analystChatHistory = [];
         let initialAnalysisLoaded = false;
+        
+        // Chart instances
+        let chartBusiest = null;
+        let chartRoutes = null;
+        let chartTrips = null;
 
         // Screen switching function
         function showScreen(screenId) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             document.getElementById(screenId).classList.add('active');
             
-            // Auto load analysis if operator mode is opened
-            if (screenId === 'screen-analyst-dashboard' && !initialAnalysisLoaded) {
-                loadInitialAnalysis();
+            // Auto load analysis and metrics if analyst dashboard is opened
+            if (screenId === 'screen-analyst-dashboard') {
+                loadDashboardData();
+                if (!initialAnalysisLoaded) {
+                    loadInitialAnalysis();
+                }
             }
         }
 
@@ -770,32 +894,18 @@
         // Format Markdown-like text into simple HTML
         function formatMarkdown(text) {
             if (!text) return "";
-            
-            // Clean up backticks
             let html = text.replace(/```/g, '');
-            
-            // Bold text
             html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-            
-            // Unordered list
             html = html.replace(/^\s*-\s+(.*?)$/gm, '<li>$1</li>');
             html = html.replace(/(<li>.*?<\/li>)/gs, '<ul>$1</ul>');
-            // Clean consecutive duplicated lists
             html = html.replace(/<\/ul>\s*<ul>/g, '');
-
-            // Bullet points using *
             html = html.replace(/^\s*\*\s+(.*?)$/gm, '<li>$1</li>');
             html = html.replace(/(<li>.*?<\/li>)/gs, '<ul>$1</ul>');
             html = html.replace(/<\/ul>\s*<ul>/g, '');
-            
-            // Numbered list
             html = html.replace(/^\s*\d+\.\s+(.*?)$/gm, '<li>$1</li>');
             html = html.replace(/(<li>.*?<\/li>)/gs, '<ol>$1</ol>');
             html = html.replace(/<\/ol>\s*<ol>/g, '');
-            
-            // New lines to br (avoiding inside lists)
             html = html.replace(/\n/g, '<br>');
-            
             return `<div class="markdown-content">${html}</div>`;
         }
 
@@ -810,108 +920,245 @@
             const messageText = inputEl.value.trim();
             if (!messageText) return;
 
-            // Clear input
             inputEl.value = '';
-
-            // Render User bubble
             renderMessage(messagesId, 'user', messageText, role);
 
-            // Add loading placeholder
             const loadingId = 'loading-' + Date.now();
             const messagesContainer = document.getElementById(messagesId);
-            const loadingHtml = `
-                <div class="chat-message assistant" id="${loadingId}">
-                    <div class="chat-avatar"><i class="fa-solid fa-circle-notch fa-spin"></i></div>
-                    <div class="chat-bubble">جاري معالجة البيانات والاستعلام...</div>
-                </div>
-            `;
-            messagesContainer.insertAdjacentHTML('beforeend', loadingHtml);
+            messagesContainer.insertAdjacentHTML('beforeend', `<div class="chat-message assistant" id="${loadingId}"><div class="chat-avatar"><i class="fa-solid fa-circle-notch fa-spin"></i></div><div class="chat-bubble">جاري معالجة البيانات...</div></div>`);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
             try {
                 const response = await fetch('/agent/chat', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        message: messageText,
-                        history: history,
-                        mode: mode
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: messageText, history, mode })
                 });
 
                 const data = await response.json();
-                
-                // Remove loading placeholder
                 const loadingEl = document.getElementById(loadingId);
                 if (loadingEl) loadingEl.remove();
 
                 if (response.ok) {
-                    // Update appropriate history
                     if (role === 'user') {
                         userChatHistory = data.history;
+                        localStorage.setItem('userChatHistory', JSON.stringify(userChatHistory));
                     } else {
                         analystChatHistory = data.history;
+                        localStorage.setItem('analystChatHistory', JSON.stringify(analystChatHistory));
                     }
-
-                    // Render assistant response
                     renderMessage(messagesId, 'assistant', data.response, role);
                 } else {
-                    renderMessage(messagesId, 'assistant', `خطأ في الاتصال بالـ API: ${data.detail || 'فشل غير معروف'}`, role);
+                    renderMessage(messagesId, 'assistant', `خطأ: ${data.detail || 'فشل الاتصال'}`, role);
                 }
             } catch (err) {
                 const loadingEl = document.getElementById(loadingId);
                 if (loadingEl) loadingEl.remove();
-                renderMessage(messagesId, 'assistant', `خطأ في الاتصال بالشبكة: ${err.message}`, role);
+                renderMessage(messagesId, 'assistant', `خطأ في الشبكة: ${err.message}`, role);
             }
         }
 
-        // Render message helper
         function renderMessage(containerId, sender, text, role) {
+            renderMessageDirectly(containerId, sender, text, role);
+            const msgObj = { role: sender, content: text };
+            if (role === 'user') {
+                userChatHistory.push(msgObj);
+                localStorage.setItem('userChatHistory', JSON.stringify(userChatHistory));
+            } else {
+                analystChatHistory.push(msgObj);
+                localStorage.setItem('analystChatHistory', JSON.stringify(analystChatHistory));
+            }
+        }
+
+        function renderMessageDirectly(containerId, sender, text, role) {
             const container = document.getElementById(containerId);
             const avatarIcon = sender === 'user' ? 
                 (role === 'user' ? '<i class="fa-solid fa-user-astronaut"></i>' : '<i class="fa-solid fa-chart-simple"></i>') : 
                 (role === 'user' ? '<i class="fa-solid fa-robot"></i>' : '<i class="fa-solid fa-user-tie"></i>');
-                
-            const messageHtml = `
-                <div class="chat-message ${sender}">
-                    <div class="chat-avatar">${avatarIcon}</div>
-                    <div class="chat-bubble">${formatMarkdown(text)}</div>
-                </div>
-            `;
+            const messageHtml = `<div class="chat-message ${sender}"><div class="chat-avatar">${avatarIcon}</div><div class="chat-bubble">${formatMarkdown(text)}</div></div>`;
             container.insertAdjacentHTML('beforeend', messageHtml);
             container.scrollTop = container.scrollHeight;
         }
 
-        // Load initial analysis automatically on opening dashboard
+        function clearChatHistory(role) {
+            if (role === 'user') {
+                userChatHistory = [];
+                localStorage.removeItem('userChatHistory');
+                document.getElementById('user-chat-messages').innerHTML = '<div class="chat-message assistant"><div class="chat-avatar"><i class="fa-solid fa-robot"></i></div><div class="chat-bubble">أهلاً بك! أنا المساعد الذكي...</div></div>';
+            } else {
+                analystChatHistory = [];
+                localStorage.removeItem('analystChatHistory');
+                document.getElementById('analyst-chat-messages').innerHTML = '<div class="chat-message assistant"><div class="chat-avatar" style="background: linear-gradient(135deg, var(--primary), #4f46e5);"><i class="fa-solid fa-user-tie"></i></div><div class="chat-bubble">مرحباً بك في لوحة تحكم التشغيل...</div></div>';
+            }
+        }
+
+        function loadSavedChats() {
+            const savedUser = localStorage.getItem('userChatHistory');
+            if (savedUser) {
+                userChatHistory = JSON.parse(savedUser);
+                userChatHistory.forEach(msg => renderMessageDirectly('user-chat-messages', msg.role, msg.content, 'user'));
+            }
+            const savedAnalyst = localStorage.getItem('analystChatHistory');
+            if (savedAnalyst) {
+                analystChatHistory = JSON.parse(savedAnalyst);
+                analystChatHistory.forEach(msg => renderMessageDirectly('analyst-chat-messages', msg.role, msg.content, 'analyst'));
+            }
+        }
+
         async function loadInitialAnalysis() {
             initialAnalysisLoaded = true;
             const container = document.getElementById('analysis-box-content');
-            
             try {
                 const response = await fetch('/agent/chat', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        message: "اكتب تقريراً تشغيلياً عاماً يحدد المحطات الأكثر ازدحاماً بالرحلات المجدولة في النظام، مع تقديم 3 مقترحات فنية وتوصيات تشغيلية محددة ومفصلة لتحسين كفاءة التشغيل وتقليل أوقات الانتظار.",
-                        history: [],
-                        mode: "analyst"
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: "اكتب تقريراً تشغيلياً...", history: [], mode: "analyst" })
                 });
-
                 const data = await response.json();
-                if (response.ok) {
-                    container.innerHTML = formatMarkdown(data.response);
-                } else {
-                    container.innerHTML = `<p style="color: var(--danger)">خطأ أثناء تحميل التحليل: ${data.detail || 'خطأ غير معروف'}</p>`;
-                }
+                if (response.ok) container.innerHTML = formatMarkdown(data.response);
             } catch (err) {
-                container.innerHTML = `<p style="color: var(--danger)">خطأ في الاتصال بالخادم: ${err.message}</p>`;
+                container.innerHTML = `<p style="color: var(--danger)">خطأ في الاتصال.</p>`;
             }
         }
+
+        // Current chart mode: 'day' or 'month'
+        let currentChartMode = 'day';
+
+        function setChartMode(mode) {
+            currentChartMode = mode;
+            document.getElementById('toggle-day').classList.toggle('active', mode === 'day');
+            document.getElementById('toggle-month').classList.toggle('active', mode === 'month');
+            loadDashboardData(mode);
+        }
+
+        async function loadDashboardData(mode) {
+            mode = mode || currentChartMode || 'day';
+            try {
+                const response = await fetch(`/api/analytics?mode=${mode}`);
+                const data = await response.json();
+                if (response.ok && data.status === 'success') {
+                    document.getElementById('stat-total-trips').innerText = data.metrics.total_trips;
+                    document.getElementById('stat-busiest-station').innerText = data.metrics.busiest_station;
+                    document.getElementById('stat-last-update').innerText = data.metrics.last_update;
+                    document.getElementById('busiest-stations-list').innerHTML = data.busiest_stations.map(st => `<div class="busiest-item"><span class="busiest-item-name">${st.name}</span><span class="busiest-item-val">${st.trips.toLocaleString()} رحلة</span></div>`).join('');
+
+                    // Update date range badge
+                    const dr = data.date_range;
+                    const badge = document.getElementById('date-range-badge');
+                    if (dr) {
+                        if (mode === 'month') {
+                            badge.textContent = `الفترة: ${dr.start} — ${dr.end}`;
+                        } else {
+                            badge.textContent = `يوم: ${dr.active_day}`;
+                        }
+                    }
+
+                    initCharts(data);
+                }
+            } catch (err) { console.error("Error loading dashboard data:", err); }
+        }
+
+        function initCharts(data) {
+            const ctxB = document.getElementById('chart-busiest-stations').getContext('2d');
+            if (chartBusiest) chartBusiest.destroy();
+            chartBusiest = new Chart(ctxB, { 
+                type: 'bar', 
+                data: { 
+                    labels: data.busiest_stations.map(x => x.name), 
+                    datasets: [{ 
+                        label: 'عدد الرحلات المجدولة',
+                        data: data.busiest_stations.map(x => x.trips), 
+                        backgroundColor: 'rgba(6, 182, 212, 0.5)',
+                        borderColor: '#06b6d4',
+                        borderWidth: 1,
+                        borderRadius: 6
+                    }] 
+                }, 
+                options: { 
+                    indexAxis: 'y', 
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#94a3b8', font: { family: 'Tajawal' } }
+                        },
+                        y: {
+                            grid: { display: false },
+                            ticks: { color: '#94a3b8', font: { family: 'Tajawal' } }
+                        }
+                    }
+                } 
+            });
+
+            const ctxR = document.getElementById('chart-routes-distribution').getContext('2d');
+            if (chartRoutes) chartRoutes.destroy();
+            chartRoutes = new Chart(ctxR, { 
+                type: 'doughnut', 
+                data: { 
+                    labels: data.route_distribution.map(x => x.label), 
+                    datasets: [{ 
+                        data: data.route_distribution.map(x => x.value), 
+                        backgroundColor: ['#7c3aed', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#3b82f6'],
+                        borderColor: 'rgba(15, 23, 42, 0.8)',
+                        borderWidth: 1
+                    }] 
+                }, 
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                color: '#94a3b8',
+                                font: { family: 'Tajawal', size: 11 }
+                            }
+                        }
+                    }
+                } 
+            });
+
+            const ctxT = document.getElementById('chart-trips-over-day').getContext('2d');
+            if (chartTrips) chartTrips.destroy();
+            chartTrips = new Chart(ctxT, { 
+                type: 'line', 
+                data: { 
+                    labels: data.hourly_trips.map(x => x.hour), 
+                    datasets: [{ 
+                        label: 'الرحلات النشطة',
+                        data: data.hourly_trips.map(x => x.trips), 
+                        borderColor: '#7c3aed', 
+                        backgroundColor: 'rgba(124, 58, 237, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        borderWidth: 2,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#06b6d4'
+                    }] 
+                }, 
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#94a3b8', font: { family: 'Tajawal' } }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#94a3b8', font: { family: 'Tajawal' } }
+                        }
+                    }
+                } 
+            });
+        }
+
+        window.addEventListener('DOMContentLoaded', loadSavedChats);
     </script>
-</body>
-</html>
